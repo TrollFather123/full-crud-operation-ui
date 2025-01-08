@@ -1,7 +1,17 @@
 const crypto = require('crypto');
 
-function generateOtp() {
-    return crypto.randomInt(100000, 999999).toString();
+
+const generateOTP = (length = 6) => {
+  const digits = '0123456789';
+  let otp = '';
+
+  for (let i = 0; i < length; i++) {
+    const index = crypto.randomInt(0, digits.length);
+    otp += digits[index];
+  }
+
+  return otp;
 }
 
-module.exports = generateOtp
+
+module.exports = generateOTP
