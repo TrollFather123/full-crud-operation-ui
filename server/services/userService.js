@@ -2,6 +2,7 @@ const sendOtp = require("../middlewares/sendMail");
 const generateOtp = require("../middlewares/createOtp");
 const bcrypt = require("bcryptjs");
 const User = require("../models/userModel");
+const jwt = require("jsonwebtoken");
 
 const createUserService = async (userData) => {
   try {
@@ -129,11 +130,10 @@ const verifyUser = async (verifyData) => {
   }
 };
 
-
-const loginUser = async (verifyData) => {
-  const { id, otp } = verifyData;
+const loginUserService = async (userData) => {
+  const { email, password } = userData;
   try {
-    const isUserExists = await User.findOne({ _id: id });
+    const isUserExists = await User.findOne({ email });
 
     if (!isUserExists) {
       return {
@@ -142,24 +142,35 @@ const loginUser = async (verifyData) => {
       };
     }
 
-    if (isUserExists.otp.value !== otp) {
+    if (!isUserExists.isVerified) {
       return {
         success: false,
-        message: "OTP does not match",
+        message: "User not verified. Please verify your email before login",
       };
     }
 
-    const verifiedUser = await User.findByIdAndUpdate(
-      id,
-      {
-        $set: {
-          isVerified: true,
-        },
-      },
-      { new: true }
+    const isMatchPassword = await bcrypt.compare(
+      password,
+      isUserExists?.password
     );
 
-    return { success: true, data: verifiedUser };
+    if (!isMatchPassword) {
+      return {
+        success: false,
+        message: "Credentials does not match",
+      };
+    }
+
+    const token = await jwt.sign(
+      { id: isUserExists._id },
+      process.env.MY_SECRET_CODE,
+      {
+        expiresIn: "1d",
+      }
+    );
+
+
+    return { success: true, data: isUserExists, token };
   } catch (err) {
     console.error(err.message);
     return {
@@ -170,4 +181,4 @@ const loginUser = async (verifyData) => {
   }
 };
 
-module.exports = { createUserService, resendOtp, verifyUser };
+module.exports = { createUserService, resendOtp, verifyUser, loginUserService };

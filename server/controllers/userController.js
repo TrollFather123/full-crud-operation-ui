@@ -92,4 +92,38 @@ const verifyUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, updateOtp, verifyUser };
+const loginUser = async (req, res) => {
+  try {
+    const {
+      success,
+      message,
+      token,
+      data: isUserExists,
+    } = await userService.loginUserService(req.body);
+
+
+
+    if (!success) {
+      return res.status(400).json({
+        status: 400,
+        message,
+      });
+    }
+
+    return res.status(200).json({
+      status: 200,
+      data: isUserExists,
+      token,
+      message: "User login Successfully!",
+    });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({
+      status: 500,
+      message: "Internal Server Error",
+      error: err.message,
+    });
+  }
+};
+
+module.exports = { registerUser, updateOtp, verifyUser, loginUser };
