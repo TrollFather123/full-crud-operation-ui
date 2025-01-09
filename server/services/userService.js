@@ -1,4 +1,4 @@
-const nodemailer = require("nodemailer");
+const sendOtp = require("../middlewares/sendMail");
 const generateOtp = require("../middlewares/createOtp");
 const bcrypt = require("bcryptjs");
 const User = require("../models/userModel");
@@ -13,7 +13,6 @@ const createUserService = async (userData) => {
     }
 
     const otp = generateOtp();
-
 
     const isSent = await sendOtp(email, otp);
     if (!isSent) {
@@ -46,37 +45,129 @@ const createUserService = async (userData) => {
   }
 };
 
-module.exports = createUserService;
-
-// Send OTP via Email
-const sendOtp = async (email, otp) => {
-    console.log(email,otp,process.env.EMAIL_PASS)
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: false,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Your OTP for Verification",
-    text: `Your OTP is: ${otp}`,
-  };
-
+const resendOtp = async (userId) => {
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`OTP sent successfully: ${info.response}`);
-    return true;
-  } catch (error) {
-    console.error(`Error sending OTP: ${error.message}`);
-    return false;
+    const isUserExists = await User.findOne({ _id: userId });
+
+    if (!isUserExists) {
+      return {
+        success: false,
+        message: "User does not exist",
+      };
+    }
+    const otp = generateOtp();
+
+    const isSent = await sendOtp(isUserExists.email, otp);
+    if (!isSent) {
+      return {
+        success: false,
+        message: "Failed to send OTP. Please try again.",
+      };
+    }
+
+    const updateOtpUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          otp: {
+            value: otp,
+            expiry: Date.now() + 10 * 60 * 1000, // OTP valid for 10 minutes
+          },
+        },
+      },
+      { new: true }
+    );
+
+    return { success: true, data: updateOtpUser };
+  } catch (err) {
+    console.error(err.message);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    };
   }
 };
 
-module.exports = { createUserService };
+const verifyUser = async (verifyData) => {
+  const { id, otp } = verifyData;
+  try {
+    const isUserExists = await User.findOne({ _id: id });
+
+    if (!isUserExists) {
+      return {
+        success: false,
+        message: "User does not exist",
+      };
+    }
+
+    if (isUserExists.otp.value !== otp) {
+      return {
+        success: false,
+        message: "OTP does not match",
+      };
+    }
+
+    const verifiedUser = await User.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          isVerified: true,
+        },
+      },
+      { new: true }
+    );
+
+    return { success: true, data: verifiedUser };
+  } catch (err) {
+    console.error(err.message);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    };
+  }
+};
+
+
+const loginUser = async (verifyData) => {
+  const { id, otp } = verifyData;
+  try {
+    const isUserExists = await User.findOne({ _id: id });
+
+    if (!isUserExists) {
+      return {
+        success: false,
+        message: "User does not exist",
+      };
+    }
+
+    if (isUserExists.otp.value !== otp) {
+      return {
+        success: false,
+        message: "OTP does not match",
+      };
+    }
+
+    const verifiedUser = await User.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          isVerified: true,
+        },
+      },
+      { new: true }
+    );
+
+    return { success: true, data: verifiedUser };
+  } catch (err) {
+    console.error(err.message);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    };
+  }
+};
+
+module.exports = { createUserService, resendOtp, verifyUser };
